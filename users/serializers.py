@@ -187,3 +187,4 @@ class UserPhotoSerializer(serializers.Serializer):
 
 class VerifyCodeSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
+

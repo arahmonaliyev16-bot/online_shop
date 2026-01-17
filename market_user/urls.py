@@ -1,21 +1,12 @@
 from django.urls import path
-from .views import (
-    CartView, CartItemAddView, CartItemUpdateView, CartItemRemoveView, CartClearView,
-    OrderCreateView, OrdersListView, OrderDetailView, OrderStatusUpdateView, OrderCancelView
-)
+from .views import CartAPIView, CartItemPutAPIView, CartItemPatchAPIView, CartItemDeleteAPIView, OrderCreateAPIView, OrderListAPIView
 
 urlpatterns = [
-    # ----- CART -----
-    path('cart/', CartView.as_view(), name='cart-detail'),
-    path('add_cart/', CartItemAddView.as_view(), name='cart-add-item'),
-    path('update_cart/', CartItemUpdateView.as_view(), name='cart-update-item'),
-    path('remove_cart/', CartItemRemoveView.as_view(), name='cart-remove-item'),
-    path('clear_cart/', CartClearView.as_view(), name='cart-clear'),
+    path('cart/', CartAPIView.as_view(), name='cart-detail'),
+    path('cart/item/put/', CartItemPutAPIView.as_view(), name='cart-item-put'),
+    path('cart/item/patch/', CartItemPatchAPIView.as_view(), name='cart-item-patch'),
+    path('cart/item/delete/', CartItemDeleteAPIView.as_view(), name='cart-item-delete'),
 
-    # ----- ORDERS -----
-    path('create_order/', OrderCreateView.as_view(), name='order-create'),
-    path('orders/', OrdersListView.as_view(), name='orders-list'),
-    path('orders/<int:order_id>/', OrderDetailView.as_view(), name='order-detail'),
-    path('orders/<int:order_id>/update_status/', OrderStatusUpdateView.as_view(), name='order-status-update'),
-    path('orders/<int:order_id>/cancel/', OrderCancelView.as_view(), name='order-cancel'),
+    path('order/create/', OrderCreateAPIView.as_view(), name='order-create'),
+    path('orders/', OrderListAPIView.as_view(), name='orders-list'),
 ]

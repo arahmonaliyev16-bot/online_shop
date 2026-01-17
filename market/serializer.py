@@ -5,9 +5,10 @@ from users.serializers import SignUpSerializer
 
 # ================= Category =================
 class CategorySerializer(serializers.ModelSerializer):
+    products_count = serializers.SerializerMethodField()
     class Meta:
         model = Category
-        fields = ('id', 'title', 'description')
+        fields = ('id', 'title', 'description', 'products_count')
 
     def get_products_count(self, obj):
         return obj.products.filter(is_active=True).count()
@@ -41,6 +42,7 @@ class CommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = ['id', 'user', 'text', 'rating', 'created_at', 'updated_at']
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+        extra_kwargs = {'rating': {'required': False}}
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user

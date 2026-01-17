@@ -7,33 +7,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, Permission, Group
 from users.models import User
 
-from config import settings
 
-
-# class MarketUser(AbstractUser):
-#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # primary key UUID
-#     username = models.EmailField(unique=True)
-#     phone_number = models.CharField(max_length=20, blank=True, null=True)
-#     photo = models.ImageField(upload_to='users_photo/', null=True, blank=True)
-#     created_at = models.DateTimeField(auto_now_add=True)
-#     updated_at = models.DateTimeField(auto_now=True)
-#     email = models.EmailField(unique=True)
-#
-#     groups = models.ManyToManyField(
-#         Group,
-#         related_name='marketuser_set',
-#         blank=True,
-#         help_text='The groups this user belongs to.',
-#         verbose_name='groups',
-#     )
-#     user_permissions = models.ManyToManyField(Permission,
-#         related_name='marketuser_permissions_set',
-#         blank=True,
-#         help_text='Specific permissions for this user.',
-#         verbose_name='user permissions')
-#
-#     def __str__(self):
-#         return self.username
 
 class Cart(models.Model):
     user = models.ForeignKey(User,on_delete=models.CASCADE)

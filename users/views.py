@@ -73,13 +73,13 @@ class VerifyCode(APIView):
 
         return True
 
-
 class NewVerifyCode(APIView):
-    permissions_class = (permissions.IsAuthenticated,)
+    permission_classes = (permissions.IsAuthenticated,)
 
-
+    @swagger_auto_schema()
     def get(self, request):
         user = request.user
+
         self.check_code(user)
         if user.auth_type == VIA_EMAIL:
             code = user.generate_code(VIA_EMAIL)
@@ -95,6 +95,30 @@ class NewVerifyCode(APIView):
             'message': 'Code yuborildi'
         }
         return Response(data)
+
+
+    # class NewVerifyCode(APIView):
+#     permissions_class = (permissions.IsAuthenticated,)
+#
+#
+#     def get(self, request):
+#         user = request.user
+#         self.check_code(user)
+#         if user.auth_type == VIA_EMAIL:
+#             code = user.generate_code(VIA_EMAIL)
+#             # send_email(users.email, code)
+#             print(code)
+#         elif user.auth_type == VIA_PHONE:
+#             code = user.generate_code(VIA_PHONE)
+#             # send_email(users.email, code)
+#             print(code)
+#
+#         data = {
+#             'success': True,
+#             'message': 'Code yuborildi'
+#         }
+#         return Response(data)
+
 
 
     @staticmethod

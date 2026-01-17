@@ -1,54 +1,98 @@
 from django.shortcuts import get_object_or_404
+from drf_yasg import openapi
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
+from unicodedata import category
 
 from shared.permissions import IsAdminOrReadOnly, IsOwnerOrAdmin
-from market.models import Products, Comment
-from market.serializer import ProductsSerializer, ProductDetailSerializer, CommentSerializer
+from market.models import Products, Comment, Category
+from market.serializer import ProductsSerializer, ProductDetailSerializer, CommentSerializer, CategorySerializer
+
+
+
+# =========================
+# CATEGORY
+# =========================
+
+class CategoryAPIView(APIView):
+    permission_classes = [IsAdminOrReadOnly]
+
+    @swagger_auto_schema()
+    def get(self, request):
+        categories = Category.objects.filter(is_active=True)
+        data_list = []
+
+        for category in categories:
+            data_list.append({
+                "id": category.id,
+                "title": category.title,
+                "description": category.description,
+                "products_count": category.products.filter(is_active=True).count()
+            })
+
+        return Response(data_list, status=status.HTTP_200_OK)
+
 
 
 # =========================
 # PRODUCTS
 # =========================
 
-class ProductListCreateAPIView(APIView):
+class ProductAPIView(APIView):
     permission_classes = [IsAdminOrReadOnly]
 
-    @swagger_auto_schema(
-        operation_summary="Productlar ro‘yxati",
-        responses={200: ProductsSerializer(many=True)}
-    )
+    @swagger_auto_schema()
     def get(self, request):
         products = Products.objects.filter(is_active=True)
-        serializer = ProductsSerializer(products, many=True)
-        return Response(serializer.data)
+        data_list = []
 
-    @swagger_auto_schema(
-        operation_summary="Product qo‘shish (faqat admin)",
-        request_body=ProductsSerializer,
-        responses={201: ProductsSerializer}
-    )
-    def post(self, request):
-        serializer = ProductsSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        for product in products:
+            data_list.append({
+                "id": product.id,
+                "title": product.title,
+                "description": product.description,
+                "price": product.price,
+                "category": {
+                    "id": product.category.id,
+                    "title": product.category.title,
+                    "description": product.category.description,
+                    "products_count": product.category.products.filter(is_active=True).count()
+                }
+            })
 
+        return Response(data_list, status=status.HTTP_200_OK)
+#
 
 class ProductDetailAPIView(APIView):
     permission_classes = [IsAdminOrReadOnly]
 
-    @swagger_auto_schema(
-        operation_summary="Product detail",
-        responses={200: ProductDetailSerializer}
-    )
+    @swagger_auto_schema()
     def get(self, request, pk):
-        product = get_object_or_404(Products, id=pk, is_active=True)
-        serializer = ProductDetailSerializer(product)
-        return Response(serializer.data)
+        try:
+            product = Products.objects.get(id=pk, is_active=True)
+        except Products.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Bunday mahsulot yo‘q"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        data = {
+            "id": product.id,
+            "title": product.title,
+            "description": product.description,
+            "price": product.price,
+            "category": {
+                "id": product.category.id,
+                "title": product.category.title,
+                "description": product.category.description,
+                "products_count": product.category.products.filter(is_active=True).count()
+            }
+        }
+
+        return Response(data)
+
 
 
 # =========================
@@ -56,196 +100,86 @@ class ProductDetailAPIView(APIView):
 # =========================
 
 class ProductCommentsAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-    @swagger_auto_schema(
-        operation_summary="Product commentlari",
-        responses={200: CommentSerializer(many=True)}
-    )
-    def get(self, request, product_id):
-        product = get_object_or_404(Products, id=product_id, is_active=True)
-        comments = product.comments.all()
-        serializer = CommentSerializer(comments, many=True)
-        return Response(serializer.data)
+    def get(self, request):
+        user_comments = Comment.objects.filter(user=request.user).select_related('product')
+        product_dict = {}
+        for comment in user_comments:
+            product = comment.product
+            if product.title not in product_dict:
+                product_dict[product.title] = []
+            product_dict[product.title].append({
+                "id": comment.id,
+                "text": comment.text,
+                "created_at": comment.created_at,
+            })
 
+        data_list = []
+        for title, comments in product_dict.items():
+            data_list.append({
+                "product_title": title,
+                "comments": comments
+            })
+
+        return Response(data_list)
+
+# ==========================
+# CREATE COMMENT
+# ==========================
 
 class CommentCreateAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     @swagger_auto_schema(
-        operation_summary="Comment qo‘shish",
-        request_body=CommentSerializer,
-        responses={201: CommentSerializer}
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['text'],  # rating optional
+            properties={
+                'text': openapi.Schema(type=openapi.TYPE_STRING, example="Bu mening kommentim"),
+                'rating': openapi.Schema(type=openapi.TYPE_INTEGER, example=5)
+            }
+        )
     )
     def post(self, request, product_id):
         product = get_object_or_404(Products, id=product_id, is_active=True)
-        serializer = CommentSerializer(data=request.data)
+        serializer = CommentSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user, product=product)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        serializer.save(user=request.user, product=product)  # user va product to‘g‘ri uzatiladi
+        return Response(serializer.data, status=201)
 
 
+# ==========================
+# UPDATE COMMENT
+# ==========================
 class CommentUpdateAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 
     @swagger_auto_schema(
-        operation_summary="Comment yangilash",
-        request_body=CommentSerializer,
-        responses={200: CommentSerializer}
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'text': openapi.Schema(type=openapi.TYPE_STRING, example="Yangilangan komment"),
+                'rating': openapi.Schema(type=openapi.TYPE_INTEGER, example=4)
+            }
+        )
     )
     def patch(self, request, comment_id):
         comment = get_object_or_404(Comment, id=comment_id, user=request.user)
-        serializer = CommentSerializer(comment, data=request.data, partial=True)
+        serializer = CommentSerializer(comment, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data)
+        return Response(serializer.data, status=200)
 
 
+# ==========================
+# DELETE COMMENT
+# ==========================
 class CommentDeleteAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 
-    @swagger_auto_schema(
-        operation_summary="Comment o‘chirish",
-        responses={200: openapi.Response("Deleted")}
-    )
+    @swagger_auto_schema()
     def delete(self, request, comment_id):
         comment = get_object_or_404(Comment, id=comment_id, user=request.user)
         comment.delete()
-        return Response({"success": True})
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# class ProductListCreateView(APIView):
-#     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-#
-#     def get(self, request):
-#         products = Products.objects.filter(is_active=True)
-#         serializer = ProductsSerializer(products, many=True)
-#         return Response(serializer.data)
-#
-#     def post(self, request):
-#         if not request.user.is_staff:
-#             data = {
-#                 'success': False,
-#                 'message': 'Foydalanuvchi admin emas',
-#             }
-#             return Response(data)
-#
-#         serializer = ProductsSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response(serializer.data, status=status.HTTP_201_CREATED)
-#
-#
-#
-# class ProductDetailUpdateView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-#
-#     def get_object(self, pk):
-#         try:
-#             return Products.objects.get(pk=pk)
-#         except Products.DoesNotExist:
-#             raise ValidationError("Product topilmadi")
-#
-#     def get(self, request, pk):
-#         product = self.get_object(pk)
-#         serializer = ProductsSerializer(product)
-#         return Response(serializer.data)
-#
-#     def put(self, request, pk):
-#         if not request.user.is_staff:
-#             data = {
-#                 'success': False,
-#                 'message': 'Foydalanuvchi admin emas',
-#             }
-#
-#
-#         product = self.get_object(pk)
-#         serializer = ProductsSerializer(product, data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response(serializer.data)
-#
-#
-#
-# class CommentCreateView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-#
-#     def post(self, request):
-#         serializer = CommentSerializer(data=request.data, context={'request': request})
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response(serializer.data, status=status.HTTP_201_CREATED)
-#
-#
-#
-# class CartView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-#
-#     def get(self, request):
-#         cart = Cart.objects.get_or_create(user=request.user, is_active=True)
-#         serializer = CartSerializer(cart)
-#         return Response(serializer.data)
-#
-#
-# class CartItemAddView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-#
-#     def post(self, request):
-#         serializer = CartItemSerializer(data=request.data, context={'request': request})
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response(serializer.data, status=status.HTTP_201_CREATED)
-#
-#
-#
-# class OrderCreateView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-#
-#     def post(self, request):
-#         user = request.user
-#
-#         try:
-#             cart = Cart.objects.get(user=user, is_active=True)
-#         except Cart.DoesNotExist:
-#             data = {
-#                 'success': False,
-#                 'message': 'Cart bosh'
-#             }
-#             return Response(data)
-#
-#         # total_price hisoblash
-#         total_price = sum([item.product.price * item.quantity for item in cart.cart_items.all()])
-#
-#         # Order yaratish
-#         order = Order.objects.create(user=user, total_price=total_price, status='pending')
-#
-#         # CartItem → OrderItem
-#         for item in cart.cart_items.all():
-#             order.items.create(
-#                 product=item.product,
-#                 quantity=item.quantity,
-#                 price=item.product.price
-#             )
-#
-#
-#         cart.cart_items.all().delete()
-#         cart.is_active = False
-#         cart.save()
-#
-#         serializer = OrderSerializer(order)
-#         return Response(serializer.data, status=status.HTTP_201_CREATED)
-#
-#
+        return Response({'success': True}, status=204)

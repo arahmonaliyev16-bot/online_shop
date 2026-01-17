@@ -1,11 +1,12 @@
 from django.db import models
-from users.models import UserConfirmation
+from users.models import UserConfirmation, User
 
 
 
 class Category(models.Model):
     title = models.CharField(max_length=50, unique=True)
     description = models.TextField()
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.title
@@ -36,7 +37,7 @@ class Products(models.Model):
 
 class Comment(models.Model):
     product = models.ForeignKey(Products, on_delete=models.CASCADE, related_name='comments')
-    user = models.ForeignKey(UserConfirmation, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments')
     text = models.TextField()
     rating = models.IntegerField(choices=[(i, i) for i in range(1, 6)])
     created_at = models.DateTimeField(auto_now_add=True)
